@@ -1,3 +1,4 @@
+
 a.out: main.o prog1.o slp.o util.o
 	cc -g main.o prog1.o slp.o util.o
 
