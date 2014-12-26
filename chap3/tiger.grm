@@ -1,0 +1,128 @@
+%{
+#include <stdio.h>
+#include "util.h"
+#include "errormsg.h"
+
+int yylex(void); /* function prototype */
+
+void yyerror(char *s)
+{
+ EM_error(EM_tokPos, "%s", s);
+}
+%}
+
+
+%union {
+	int pos;
+	int ival;
+	string sval;
+	}
+
+%right ASSIGN
+%nonassoc THEN
+%nonassoc ELSE DO OF
+%left AND OR
+%nonassoc EQ NEQ LT LE GT GE
+%left PLUS MINUS
+%left TIMES DIVIDE
+%right UMINUS
+
+
+%token <sval> ID STRING
+%token <ival> INT
+
+%token 
+  COMMA COLON SEMICOLON LPAREN RPAREN LBRACK RBRACK 
+  LBRACE RBRACE DOT 
+  PLUS MINUS TIMES DIVIDE EQ NEQ LT LE GT GE
+  AND OR ASSIGN
+  ARRAY IF THEN ELSE WHILE FOR TO DO LET IN END OF 
+  BREAK NIL
+  FUNCTION VAR TYPE 
+  UMINUS
+
+%start program
+
+%%
+
+program:	exp
+
+decs:   dec decs
+    |   
+
+dec:    tydec
+   |    vardec
+   |    fundec
+
+tydec:  TYPE ID EQ ty
+
+ty: ID
+  | LBRACE tyfields RBRACE
+  | ARRAY OF ID
+
+tyfields:   tyfieldlist
+        |   
+
+tyfieldlist:    tyfield COMMA tyfieldlist
+           |    tyfield
+
+tyfield:    ID COLON ID
+
+vardec: VAR ID ASSIGN exp
+      | VAR ID COLON ID ASSIGN exp
+
+fundec: FUNCTION ID LPAREN tyfields RPAREN EQ exp
+      | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp
+
+lvalue: ID
+      | lvalue_no_id
+
+lvalue_no_id:   lvalue DOT ID
+            |   lvalue_post
+
+lvalue_post:    ID LBRACK exp RBRACK
+           |    lvalue_no_id LBRACK exp RBRACK
+
+exp:    lvalue
+   |    NIL
+   |    LPAREN expseq RPAREN
+   |    LPAREN RPAREN
+   |    INT 
+   |    exp PLUS exp
+   |    exp TIMES exp 
+   |    exp DIVIDE exp 
+   |    exp MINUS exp 
+   |    exp EQ exp 
+   |    exp NEQ exp 
+   |    exp GT exp 
+   |    exp GE exp 
+   |    exp LT exp 
+   |    exp LE exp 
+   |    exp AND exp
+   |    exp OR exp
+   |    MINUS exp   %prec UMINUS
+   |    STRING
+   |    ID LPAREN explist RPAREN
+   |    ID LPAREN RPAREN
+   |    ID LBRACK exp RBRACK OF exp
+   |    ID LBRACE recordlist RBRACE
+   |    ID LBRACE RBRACE
+   |    lvalue ASSIGN exp
+   |    IF exp THEN exp ELSE exp
+   |    IF exp THEN exp
+   |    WHILE exp DO exp
+   |    FOR ID ASSIGN exp TO exp DO exp
+   |    BREAK
+   |    LET decs IN expseq END
+
+
+explist:    exp COMMA explist
+       |    exp
+
+expseq:     exp SEMICOLON expseq
+      |     exp
+
+recordlist: record COMMA recordlist
+          | record
+
+record: ID EQ exp

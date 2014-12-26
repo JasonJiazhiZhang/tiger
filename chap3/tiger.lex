@@ -1,8 +1,8 @@
 %{
 #include <string.h>
 #include "util.h"
-#include "tokens.h"
 #include "errormsg.h"
+#include "y.tab.h"
 
 int charPos=1;
 
@@ -98,13 +98,13 @@ EMPTY [ \t]+
 "*" {adjust(); return TIMES;} 
 "/" {adjust(); return DIVIDE;} 
 "=" {adjust(); return EQ;}
-"!=" {adjust(); return NEQ;}
+"<>" {adjust(); return NEQ;}
 "<" {adjust(); return LT;}
 "<=" {adjust(); return LE;}
 ">" {adjust(); return GT;}
 ">=" {adjust(); return GE;}
-"&&" {adjust(); return AND;}
-"||" {adjust(); return OR;}
+"&" {adjust(); return AND;}
+"|" {adjust(); return OR;}
 ":=" {adjust(); return ASSIGN;}
 "array" {adjust(); return ARRAY;}
 "if" {adjust(); return IF;}
@@ -133,6 +133,5 @@ EMPTY [ \t]+
 <comment>. {adjust(); continue;}
 \"(\\.|[^\\"])*\" {adjust(); yylval.sval=handle_string(yytext); return STRING;}
 .	 {adjust(); EM_error(EM_tokPos,"illegal token");}
-
 
 
