@@ -16,6 +16,9 @@ types.o: types.c types.h
 env.o: env.c env.h
 	cc -g -c env.c
 
+semant.o: semant.c semant.h
+	cc -g -c semant.c
+
 absyn.o: absyn.c util.h symbol.h
 	cc -g -c absyn.c
 
