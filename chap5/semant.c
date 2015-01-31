@@ -112,7 +112,141 @@ struct expty transExp(S_table venv, S_table tenv, A_exp a){
       }
       return expTy(NULL, et.ty);
 
-    // TO-continue case A_recordExp:
+    case A_recordExp:
+      {
+        Ty_ty recordType = actual_ty(S_look(tenv, a->u.record.typ));
+        if(recordType->kind != Ty_record){
+          EM_error(a->pos, "type is not record type");
+          return  expTy(NULL, Ty_Nil());
+        }
+        Ty_fieldList list = NULL;
+        Ty_field field = NULL;
+        int a_num= 0, ty_num = 0;
+        A_efieldList ls;
+        Ty_fieldList tls;
+        for(ls = a->u.record.fields; ls; ls = ls->tail){
+          a_num++;
+          for(tls = recordType->u.record; tls; tls = tls->tail){
+            if(ls->head->name == tls->head->name){//same type here
+              et = transExp(venv, tenv, ls->head->exp);
+              if(actual_ty(tls->head->ty) != et.ty){
+                EM_error(a->pos, "type should be the same");
+                return  expTy(NULL, Ty_Nil());
+              }
+              ty_num++;
+            }
+          }
+        }
+        if(a_num != ty_num){
+          EM_error(a->pos, "type num should same");
+          return  expTy(NULL, Ty_Nil());
+        }
+        return expTy(NULL, recordType);
+      }
+    case A_seqExp:
+      {
+        A_expList l = a->u.seq;
+        if(!l){
+          return expTy(NULL, Ty_Nil());
+       }
+        while(l->tail){
+          l = l->tail;
+        }
+        return transExp(venv, tenv, l->head);
+      }
+    case A_assignExp:
+      {
+        et = transVar(venv, tenv, a->u.assign.var);
+        et2 = transExp(venv, tenv, a->u.assign.exp); 
+        if(et.ty != et2.ty){
+          EM_error(a->pos, "assign left type not same with right side");
+          return  expTy(NULL, Ty_Nil());
+        }
+
+        return expTy(NULL, Ty_Void());
+      }
+
+    case A_breakExp:
+      return expTy(NULL, Ty_Void());
+    case A_ifExp:
+      {
+        et = transExp(venv, tenv, a->u.iff.test);
+        if(et.ty != Ty_Int()){
+          EM_error(a->pos, "type of if should be int");
+          return  expTy(NULL, Ty_Nil());
+        }
+        et2 = transExp(venv, tenv, a->u.iff.then);
+        if(a->u.iff.elsee){ // we have else clouse
+          struct expty et3 = transExp(venv, tenv, a->u.iff.elsee);
+          if(et2.ty != et3.ty){
+            EM_error(a->pos, "type of then should be else");
+            return  expTy(NULL, Ty_Nil());
+          }
+        }
+        return expTy(NULL, et.ty);
+      }
+
+    case A_whileExp:
+      {
+        et = transExp(venv, tenv, a->u.whilee.test);
+        if(et.ty != Ty_Int()){
+          EM_error(a->pos, "type of while should be int");
+          return  expTy(NULL, Ty_Nil());
+        }
+        et2 = transExp(venv, tenv, a->u.whilee.body);
+        return expTy(NULL, et2.ty);
+      }
+      
+    case A_forExp:
+      {
+        struct expty lo = transExp(venv, tenv, a->u.forr.lo);
+        struct expty hi = transExp(venv, tenv, a->u.forr.hi);
+        struct expty body;
+        if (lo.ty != Ty_Int() || hi.ty != Ty_Int()) {
+          EM_error(a->pos, "low or high range type is not integer");
+          return expTy(NULL, Ty_Nil());
+        }
+        S_beginScope(venv);
+        transDec(venv, tenv, A_VarDec(a->pos, a->u.forr.var, S_Symbol("int"), a->u.forr.lo));
+        S_endScope(venv);
+        return expTy(NULL, Ty_Void());
+      }
+
+    case A_letExp:
+      {
+        struct expty final;
+        A_decList d;
+        S_beginScope(venv);
+        S_beginScope(tenv);
+        for (d = a->u.let.decs; d; d = d->tail) {
+          transDec(venv, tenv, d->head);
+        }
+        final = transExp(venv, tenv, a->u.let.body);
+        S_endScope(venv);
+        S_endScope(tenv);
+        return final;
+      }
+
+    case A_arrayExp:
+      {
+        Ty_ty type = actual_ty(S_look(tenv, a->u.array.typ));
+        if(!type || type->kind != Ty_array){
+          EM_error(a->pos, "not an arraytype");
+          return expTy(NULL, Ty_Nil());
+        }
+        et = transExp(venv, tenv, a->u.array.size);
+        if(et.ty != Ty_Int()){
+          EM_error(a->pos, "not an int type");
+          return expTy(NULL, Ty_Nil());
+        }
+        et2 = transExp(venv, tenv, a->u.array.init);
+        if(et2.ty != type->u.array){
+          EM_error(a->pos, "init type not match array type");
+          return expTy(NULL, Ty_Nil());
+        }
+        return expTy(NULL, type);
+
+      }
 
 
 
