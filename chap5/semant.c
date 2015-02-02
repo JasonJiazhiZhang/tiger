@@ -256,6 +256,32 @@ struct expty transExp(S_table venv, S_table tenv, A_exp a){
 }
 void transDec(S_table venv, S_table tenv, A_dec d){
   // TO-DO
+  switch(d->kind){
+    case A_varDec:
+      {
+        struct expty e = transExp(venv, tenv, d->u.var.init);
+        S_enter(venv, d->u.var.var, E_VarEntry(e.ty));
+        return;
+      }
+    case A_typeDec:
+      {
+        A_nametyList ls = NULL;
+        for (ls = d->u.type; ls; ls=ls->tail) {
+          S_enter(tenv, ls->head->name, transTy(tenv, ls->head->ty));
+        }
+        return;
+      }
+    case A_functionDec:
+      { // non-finished
+        A_fundecList ls;
+        for(ls = d->u.function; ls; ls=ls->tail){
+          A_fieldList fields = ls->head->params;
+        }
+        return;
+      }
+
+
+  }
 }
 
 Ty_ty transTy ( S_table tenv, A_ty a){
