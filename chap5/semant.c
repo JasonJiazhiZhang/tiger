@@ -276,15 +276,71 @@ void transDec(S_table venv, S_table tenv, A_dec d){
         A_fundecList ls;
         for(ls = d->u.function; ls; ls=ls->tail){
           A_fieldList fields = ls->head->params;
+          // trans fields to formals
+          Ty_tyList formals = NULL;
+          for(; fields; fields = fields->tail) {
+             A_field param = fields->head; 
+             Ty_ty param_ty = actual_ty(S_look(tenv, param->typ));
+             formals = Ty_TyList(param_ty, formals);
+          }
+          // check result type ?
+          Ty_ty rt_ty = actual_ty(S_look(tenv, ls->head->result));
+          S_enter(venv, ls->head->name, E_FunEntry(formals, rt_ty));
+
+          S_beginScope(venv);
+          {
+            A_fieldList l; Ty_tyList t;
+            for(l = fields, t = formals; l; l=l->tail, t=t->tail){
+              S_enter(venv, l->head->name, E_VarEntry(t->head));
+            }
+            transExp(venv, tenv, ls->head->body);
+          }
+          S_endScope(venv);
         }
         return;
       }
-
 
   }
 }
 
 Ty_ty transTy ( S_table tenv, A_ty a){
   // TO-DO
-  return Ty_Nil();
+  switch(a->kind){
+    case A_nameTy:
+      {
+        Ty_ty ty = actual_ty(S_look(tenv, a->u.name));
+        if(!ty){
+          EM_error(a->pos, "undefined type");
+          return Ty_Nil();
+        }
+        return ty;
+      }
+    case A_recordTy:
+      {
+        A_fieldList ls;
+        Ty_fieldList ty_ls = NULL;
+        for(ls = a->u.record; ls; ls = ls->tail){
+          A_field record = ls->head;
+          Ty_ty ty = actual_ty(S_look(tenv, record->typ));
+          if(!ty){
+            EM_error(record->pos, "undefined type");
+            return Ty_Nil();
+          }
+          Ty_field t = Ty_Field(record->name, ty);
+          ty_ls = Ty_FieldList(t, ty_ls);
+        }
+
+        return Ty_Record(ty_ls);
+      }
+    case A_arrayTy:
+      {
+        Ty_ty ty = actual_ty(S_look(tenv, a->u.array));
+        if(!ty){
+          EM_error(a->pos, "undefined type");
+          return Ty_Nil();
+        }
+        return Ty_Array(ty);
+      }
+  }
+  assert(0);
 }
