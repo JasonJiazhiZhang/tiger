@@ -1,7 +1,7 @@
-a.out: parse.o y.tab.o lex.yy.o errormsg.o util.o table.o absyn.o prabsyn.o symbol.o
-	cc -g parse.o y.tab.o lex.yy.o errormsg.o util.o table.o absyn.o prabsyn.o symbol.o
+a.out: parse.o y.tab.o lex.yy.o errormsg.o util.o table.o absyn.o prabsyn.o symbol.o semant.o env.o types.o
+	cc -g parse.o y.tab.o lex.yy.o errormsg.o util.o table.o absyn.o prabsyn.o symbol.o semant.o env.o types.o
 
-parse.o: parse.c errormsg.h util.h
+parse.o: parse.c errormsg.h util.h *.h
 	cc -g -c parse.c
 
 symbol.o: symbol.c util.h table.h

@@ -8,8 +8,18 @@
 #include "env.h"
 #include "semant.h"
 
+
+struct expty expTy(Tr_exp exp, Ty_ty ty){
+  struct expty e; e.exp = exp; e.ty = ty;
+  return e;
+}
+
+
 Ty_ty actual_ty(Ty_ty ty){
-  if(!ty) assert(0); //should not reach here, ty should not be null
+  if(!ty){
+    EM_error("Invalid type, actuall_ty, critical Fault");
+    assert(0); //should not reach here, ty should not be null
+  }
   if (ty->kind == Ty_name){
     return actual_ty(ty->u.name.ty);
   } else {
@@ -50,7 +60,7 @@ struct expty transVar(S_table venv, S_table tenv, A_var v){
       EM_error(v->pos, "index should be int");
       return expTy(NULL, Ty_Nil());
     }
-    struct expty et = transVar(venv, tenv, v->u.subscript.var);
+    et = transVar(venv, tenv, v->u.subscript.var);
     if(et.ty->kind != Ty_array){
       EM_error(v->pos, "array type needed");
       return expTy(NULL, Ty_Nil());
@@ -251,7 +261,7 @@ void transDec(S_table venv, S_table tenv, A_dec d){
       Ty_ty var_type = S_look(tenv, d->u.var.typ);
       if (var_type != e.ty){
 	EM_error(d->pos, "type different between left side and right side");
-	return expTy(NULL, Ty_Nil());
+	return;
       }
     }
     S_enter(venv, d->u.var.var, E_VarEntry(e.ty));
@@ -259,33 +269,80 @@ void transDec(S_table venv, S_table tenv, A_dec d){
   }
   case A_typeDec:{
     A_nametyList ls = NULL;
+    // first pass just handle head
+    // " type list = " part
+    for (ls = d->u.type; ls; ls = ls->tail){
+      S_enter(tenv, ls->head->name, Ty_Name(ls->head->name, NULL));
+    }
+    // second pass deal with body
     for (ls = d->u.type; ls; ls=ls->tail) {
-      S_enter(tenv, ls->head->name, transTy(tenv, ls->head->ty));
+      Ty_ty head = S_look(tenv, ls->head->name);
+      assert(head);
+      assert(head->kind == Ty_name);
+      assert(head->u.name.ty == NULL);
+      Ty_ty body = transTy(tenv, ls->head->ty);
+      head->u.name.ty = body;
+
+      // simple cycle type dec check
+      Ty_ty check_ty = head->u.name.ty;
+      while(check_ty && check_ty->kind == Ty_name){
+	if(check_ty->u.name.ty == head){
+	  EM_error(d->pos, "cycle type declation exists");
+	  return;
+	}
+      }
     }
     return;
   }
   case A_functionDec:{
     A_fundecList ls;
+    // first pass shall gather the head info
     for(ls = d->u.function; ls; ls=ls->tail){
+      // I think we shall still check the funcion params' type
       A_fieldList fields = ls->head->params;
       // trans fields to formals
       Ty_tyList formals = NULL;
       for(; fields; fields = fields->tail) {
-	A_field param = fields->head; 
-	Ty_ty param_ty = actual_ty(S_look(tenv, param->typ));
+	A_field param = fields->head;
+	Ty_ty param_ty = S_look(tenv, param->typ);
+	if (!param_ty){
+	  EM_error(d->pos, "wrong param type %s", S_name(param->typ));
+	  return;
+	}
+	param_ty = actual_ty(param_ty);
 	formals = Ty_TyList(param_ty, formals);
       }
-      // check result type ?
-      Ty_ty rt_ty = actual_ty(S_look(tenv, ls->head->result));
-      S_enter(venv, ls->head->name, E_FunEntry(formals, rt_ty));
+      // check result type
+      Ty_ty rt_ty = S_look(tenv, ls->head->result);
       
+      if (!rt_ty){
+	EM_error(d->pos, "wrong return type");
+	return;
+      }
+      rt_ty = actual_ty(rt_ty);
+      S_enter(venv, ls->head->name, E_FunEntry(formals, rt_ty));
+    }
+    //second pass deal with function body
+    for(ls = d->u.function; ls; ls=ls->tail){
+      E_enventry f_entry = S_look(venv, ls->head->name);
+      assert(f_entry);
+      assert(f_entry->kind == E_funEntry);
+
       S_beginScope(venv);
       {
+	A_fieldList fields = ls->head->params;
+	Ty_tyList formals = f_entry->u.fun.formals;
 	A_fieldList l; Ty_tyList t;
 	for(l = fields, t = formals; l; l=l->tail, t=t->tail){
 	  S_enter(venv, l->head->name, E_VarEntry(t->head));
 	}
-	transExp(venv, tenv, ls->head->body);
+	// ignore function return type check for now.
+	struct expty ety = transExp(venv, tenv, ls->head->body);
+	Ty_ty rt_ty = ety.ty;
+	if (rt_ty != f_entry->u.fun.result){
+	  EM_error(d->pos, "wrong return type");
+	  return;
+	}
       }
       S_endScope(venv);
     }
@@ -296,10 +353,10 @@ void transDec(S_table venv, S_table tenv, A_dec d){
 }
 
 Ty_ty transTy ( S_table tenv, A_ty a){
-  // TO-DO: make it recursive
+
   switch(a->kind){
   case A_nameTy:{
-    Ty_ty ty = actual_ty(S_look(tenv, a->u.name));
+    Ty_ty ty = S_look(tenv, a->u.name);
     if(!ty){
       EM_error(a->pos, "undefined type");
       return Ty_Nil();
@@ -311,7 +368,7 @@ Ty_ty transTy ( S_table tenv, A_ty a){
     Ty_fieldList ty_ls = NULL;
     for(ls = a->u.record; ls; ls = ls->tail){
       A_field record = ls->head;
-      Ty_ty ty = actual_ty(S_look(tenv, record->typ));
+      Ty_ty ty = S_look(tenv, record->typ);
       if(!ty){
 	EM_error(record->pos, "undefined type");
 	return Ty_Nil();
@@ -323,7 +380,7 @@ Ty_ty transTy ( S_table tenv, A_ty a){
     return Ty_Record(ty_ls);
   }
   case A_arrayTy:{
-    Ty_ty ty = actual_ty(S_look(tenv, a->u.array));
+    Ty_ty ty = S_look(tenv, a->u.array);
     if(!ty){
       EM_error(a->pos, "undefined type");
       return Ty_Nil();
